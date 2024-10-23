@@ -36,6 +36,8 @@ sqlInsert = os.getenv("sqlInsert")
 sqlSelect = os.getenv("sqlSelect")
 sqlDelete = os.getenv("sqlDelete")
 
+hour_in_seconds = 60 * 60
+
 
 async def start(update: Update, context: CallbackContext):
     await update.message.reply_text(
@@ -44,18 +46,18 @@ async def start(update: Update, context: CallbackContext):
 
 
 async def handle_message(update: Update, context: CallbackContext):
-    await update.message.reply_text(update.message.text)
-    print(datetime.datetime.now().astimezone())
-    print(update.message.date)
-
-
-async def handle_join(update: Update, context: CallbackContext):
-    # context.bot.approve_chat_join_request(
-    #     chat_id=update.effective_chat.id, user_id=update.effective_user.id
-    # )
-    print(context)
-    await update.message.reply_text(update.message.text)
-    print(update.message.date)
+    conn = psycopg2.connect(database="BotAdministrator",
+                            host="localhost",
+                            user="postgres",
+                            password="postgres",
+                            port="5432")
+    conn.autocommit = True
+    cursor = conn.cursor()
+    cursor.execute(sqlSelect.format(update.message.from_user.id))
+    datetime_joined_user = cursor.fetchone()[0]
+    time_user_is_in_the_chat = datetime.datetime.now() - datetime_joined_user
+    if time_user_is_in_the_chat.total_seconds() < hour_in_seconds:
+        await update.message.delete()
 
 
 def extract_status_change(chat_member_update: ChatMemberUpdated) -> Optional[Tuple[bool, bool]]:
