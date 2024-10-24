@@ -1,3 +1,5 @@
+import re
+
 from telegram import Chat, ChatMember, ChatMemberUpdated, Update
 from telegram.constants import ParseMode
 from typing import Optional, Tuple
@@ -36,7 +38,8 @@ sqlInsert = os.getenv("sqlInsert")
 sqlSelect = os.getenv("sqlSelect")
 sqlDelete = os.getenv("sqlDelete")
 
-hour_in_seconds = 60 * 60
+seconds_in_hour = 60 * 60
+seconds_in_day = seconds_in_hour * 24
 
 
 async def start(update: Update, context: CallbackContext):
@@ -56,8 +59,11 @@ async def handle_message(update: Update, context: CallbackContext):
     cursor.execute(sqlSelect.format(update.message.from_user.id))
     datetime_joined_user = cursor.fetchone()[0]
     time_user_is_in_the_chat = datetime.datetime.now() - datetime_joined_user
-    if time_user_is_in_the_chat.total_seconds() < hour_in_seconds:
+    if time_user_is_in_the_chat.total_seconds() < seconds_in_hour:
         await update.message.delete()
+    elif re.search("(?P<url>https?://[^\s]+)", update.message.text):
+        if time_user_is_in_the_chat.total_seconds() < seconds_in_day:
+            await update.message.delete()
 
 
 def extract_status_change(chat_member_update: ChatMemberUpdated) -> Optional[Tuple[bool, bool]]:
