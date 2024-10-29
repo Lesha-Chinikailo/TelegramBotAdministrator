@@ -49,6 +49,11 @@ async def start(update: Update, context: CallbackContext):
 
 
 async def handle_message(update: Update, context: CallbackContext):
+    chat_admins = await update.effective_chat.get_administrators()
+    if update.effective_user in (admin.user for admin in chat_admins):
+        print("user is admin")
+        return
+
     conn = psycopg2.connect(database="BotAdministrator",
                             host="localhost",
                             user="postgres",
@@ -64,6 +69,25 @@ async def handle_message(update: Update, context: CallbackContext):
     elif re.search("(?P<url>https?://[^\s]+)", update.message.text):
         if time_user_is_in_the_chat.total_seconds() < seconds_in_day:
             await update.message.delete()
+
+    conn.close()
+
+
+async def handle_photo(update: Update, context: CallbackContext):
+    conn = psycopg2.connect(database="BotAdministrator",
+                            host="localhost",
+                            user="postgres",
+                            password="postgres",
+                            port="5432")
+    conn.autocommit = True
+    cursor = conn.cursor()
+    cursor.execute(sqlSelect.format(update.message.from_user.id))
+    datetime_joined_user = cursor.fetchone()[0]
+    time_user_is_in_the_chat = datetime.datetime.now() - datetime_joined_user
+    if time_user_is_in_the_chat.total_seconds() < seconds_in_hour:
+        await update.message.delete()
+
+    conn.close()
 
 
 def extract_status_change(chat_member_update: ChatMemberUpdated) -> Optional[Tuple[bool, bool]]:
@@ -142,6 +166,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(ChatMemberHandler(greet_chat_members, ChatMemberHandler.CHAT_MEMBER))
     application.add_handler(MessageHandler(filters.TEXT, handle_message))
+    application.add_handler(MessageHandler(filters.PHOTO | filters.VIDEO, handle_photo))
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
