@@ -1,4 +1,5 @@
 import re
+import os
 
 from telegram import Chat, ChatMember, ChatMemberUpdated, Update
 from telegram.constants import ParseMode
@@ -42,6 +43,9 @@ error_message_send_message_less_days = "user was in chat less than a day and he 
 error_message_send_photo_less_days = "user was in chat less than a day and he sent a photo"
 error_message_send_video_less_days = "user was in chat less than a day and he sent a video"
 
+name_dir_images = "images"
+name_dir_videos = "videos"
+
 
 async def start(update: Update, context: CallbackContext):
     await update.message.reply_text(
@@ -63,7 +67,7 @@ async def delete_photo_message(cursor, update: Update, reason_for_deletion: str)
     photo = update.message.photo[-1]
     file = await photo.get_file()
 
-    file_path = f"images/{photo.file_id}.jpg"
+    file_path = f"{name_dir_images}/{photo.file_id}.jpg"
     await file.download_to_drive(file_path)
 
     cursor.execute(sqlInsertDeletedMessages
@@ -121,7 +125,7 @@ async def delete_video_message(cursor, update, reason_for_deletion):
     video = update.message.video
     file = await video.get_file()
 
-    file_path = f"videos/{video.file_id}.{video.mime_type.split('/')[1]}"
+    file_path = f"{name_dir_videos}/{video.file_id}.{video.mime_type.split('/')[1]}"
     await file.download_to_drive(file_path)
 
     cursor.execute(sqlInsertDeletedMessages
@@ -141,11 +145,13 @@ async def handle_video(update: Update, context: CallbackContext):
                             port="5432")
     conn.autocommit = True
     cursor = conn.cursor()
-    cursor.execute(sqlSelectDateJoined.format(update.message.from_user.id))
-    datetime_joined_user = cursor.fetchone()[0]
-    time_user_is_in_the_chat = datetime.datetime.now() - datetime_joined_user
-    if time_user_is_in_the_chat.total_seconds() < seconds_in_hour:
-        await delete_video_message(cursor, update, error_message_send_video_less_days)
+    await delete_video_message(cursor, update, error_message_send_video_less_days)
+
+    # cursor.execute(sqlSelectDateJoined.format(update.message.from_user.id))
+    # datetime_joined_user = cursor.fetchone()[0]
+    # time_user_is_in_the_chat = datetime.datetime.now() - datetime_joined_user
+    # if time_user_is_in_the_chat.total_seconds() < seconds_in_hour:
+    #     await delete_video_message(cursor, update, error_message_send_video_less_days)
 
     conn.close()
 
@@ -230,6 +236,12 @@ async def greet_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 def main() -> None:
+    directory = name_dir_images
+    if not os.path.exists(directory):
+        os.mkdir(directory)
+    directory = name_dir_videos
+    if not os.path.exists(directory):
+        os.mkdir(directory)
     application = Application.builder().token(os.getenv("TOKEN")).build()
 
     application.add_handler(CommandHandler("start", start))
