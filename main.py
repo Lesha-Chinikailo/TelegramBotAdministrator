@@ -7,6 +7,7 @@ import os
 import psycopg2
 from dotenv import load_dotenv, find_dotenv
 from datetime import datetime, timezone
+from PIL import Image
 
 from telegram.ext import (
     Application,
@@ -21,31 +22,57 @@ from telegram.ext import (
 import datetime
 import psycopg2
 
-# sqlInsert = """INSERT INTO dateJoined(id, datetime)
-#              VALUES({}, {})"""
-#
-# sqlSelect = """Select datetime FROM dateJoined
-#              WHERE id = {}"""
-#
-# sqlDelete = """Delete FROM dateJoined
-#              WHERE id = {}"""
-
 config_path = find_dotenv('config.env')
 
 load_dotenv(config_path)
 
-sqlInsert = os.getenv("sqlInsert")
-sqlSelect = os.getenv("sqlSelect")
-sqlDelete = os.getenv("sqlDelete")
+sqlInsertDateJoined = os.getenv("sqlInsertDateJoined")
+sqlSelectDateJoined = os.getenv("sqlSelectDateJoined")
+sqlDeleteDateJoined = os.getenv("sqlDeleteDateJoined")
+
+sqlInsertDeletedMessages = os.getenv("sqlInsertDeletedMessages")
+
+sqlInsertUsers = os.getenv("sqlInsertUsers")
+sqlSelectIdUsers = os.getenv("sqlSelectIdUsers")
 
 seconds_in_hour = 60 * 60
 seconds_in_day = seconds_in_hour * 24
+
+error_message_send_message_less_days = "user was in chat less than a day and he sent a reference"
+error_message_send_photo_less_days = "user was in chat less than a day and he sent a photo"
+error_message_send_video_less_days = "user was in chat less than a day and he sent a video"
 
 
 async def start(update: Update, context: CallbackContext):
     await update.message.reply_text(
         "Enter the text you want to show to the user whenever they start the bot")
     print(update)
+
+
+async def delete_text_message(cursor, update: Update, reason_for_deletion: str):
+    cursor.execute(sqlInsertDeletedMessages
+                   .format(update.message.from_user.id,
+                           f"'TEXT'",
+                           f"'{update.message.text}'",
+                           f"'{reason_for_deletion}'"))
+
+    await update.message.delete()
+
+
+async def delete_photo_message(cursor, update: Update, reason_for_deletion: str):
+    photo = update.message.photo[-1]
+    file = await photo.get_file()
+
+    file_path = f"images/{photo.file_id}.jpg"
+    await file.download_to_drive(file_path)
+
+    cursor.execute(sqlInsertDeletedMessages
+                   .format(update.message.from_user.id,
+                           "'PHOTO'",
+                           f"'{file_path}'",
+                           f"'{reason_for_deletion}'"))
+
+    await update.message.delete()
 
 
 async def handle_message(update: Update, context: CallbackContext):
@@ -61,14 +88,14 @@ async def handle_message(update: Update, context: CallbackContext):
                             port="5432")
     conn.autocommit = True
     cursor = conn.cursor()
-    cursor.execute(sqlSelect.format(update.message.from_user.id))
+    cursor.execute(sqlSelectDateJoined.format(update.message.from_user.id))
     datetime_joined_user = cursor.fetchone()[0]
     time_user_is_in_the_chat = datetime.datetime.now() - datetime_joined_user
     if time_user_is_in_the_chat.total_seconds() < seconds_in_hour:
-        await update.message.delete()
+        await delete_text_message(cursor, update, "user was in chat less than an hour")
     elif re.search("(?P<url>https?://[^\s]+)", update.message.text):
         if time_user_is_in_the_chat.total_seconds() < seconds_in_day:
-            await update.message.delete()
+            await delete_text_message(cursor, update, error_message_send_message_less_days)
 
     conn.close()
 
@@ -81,11 +108,44 @@ async def handle_photo(update: Update, context: CallbackContext):
                             port="5432")
     conn.autocommit = True
     cursor = conn.cursor()
-    cursor.execute(sqlSelect.format(update.message.from_user.id))
+    cursor.execute(sqlSelectDateJoined.format(update.message.from_user.id))
     datetime_joined_user = cursor.fetchone()[0]
     time_user_is_in_the_chat = datetime.datetime.now() - datetime_joined_user
     if time_user_is_in_the_chat.total_seconds() < seconds_in_hour:
-        await update.message.delete()
+        await delete_photo_message(cursor, update, error_message_send_photo_less_days)
+
+    conn.close()
+
+
+async def delete_video_message(cursor, update, reason_for_deletion):
+    video = update.message.video
+    file = await video.get_file()
+
+    file_path = f"videos/{video.file_id}.{video.mime_type.split('/')[1]}"
+    await file.download_to_drive(file_path)
+
+    cursor.execute(sqlInsertDeletedMessages
+                   .format(update.message.from_user.id,
+                           "'VIDEO'",
+                           f"'{file_path}'",
+                           f"'{reason_for_deletion}'"))
+
+    await update.message.delete()
+
+
+async def handle_video(update: Update, context: CallbackContext):
+    conn = psycopg2.connect(database="BotAdministrator",
+                            host="localhost",
+                            user="postgres",
+                            password="postgres",
+                            port="5432")
+    conn.autocommit = True
+    cursor = conn.cursor()
+    cursor.execute(sqlSelectDateJoined.format(update.message.from_user.id))
+    datetime_joined_user = cursor.fetchone()[0]
+    time_user_is_in_the_chat = datetime.datetime.now() - datetime_joined_user
+    if time_user_is_in_the_chat.total_seconds() < seconds_in_hour:
+        await delete_video_message(cursor, update, error_message_send_video_less_days)
 
     conn.close()
 
@@ -145,17 +205,26 @@ async def greet_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
 
         now = datetime.datetime.now()
-        cursor.execute(sqlInsert.format(new_user.id, f"'{now}'"))
+        cursor.execute(sqlInsertDateJoined.format(new_user.id, f"'{now}'"))
+        cursor.execute(sqlSelectIdUsers.format(new_user.id))
+        fetchone = cursor.fetchone()
+        if fetchone is None:
+            username = new_user.username if new_user.username is not None else "null"
+            cursor.execute(sqlInsertUsers.format(
+                new_user.id,
+                f"'{username}'",
+                f"'{new_user.full_name}'"
+            ))
     elif was_member and not is_member:
         await update.effective_chat.send_message(
             f"{member_name} is no longer with us. Thanks a lot, {cause_name} ...",
             parse_mode=ParseMode.HTML,
         )
-        cursor.execute(sqlSelect.format(new_user.id))
+        cursor.execute(sqlSelectDateJoined.format(new_user.id))
         # datetime_user = cursor.fetchone()
         # print(datetime_user[0])
         # print(datetime.datetime.now() - datetime_user[0])
-        cursor.execute(sqlDelete.format(new_user.id))
+        cursor.execute(sqlDeleteDateJoined.format(new_user.id))
 
     conn.close()
 
@@ -166,7 +235,8 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(ChatMemberHandler(greet_chat_members, ChatMemberHandler.CHAT_MEMBER))
     application.add_handler(MessageHandler(filters.TEXT, handle_message))
-    application.add_handler(MessageHandler(filters.PHOTO | filters.VIDEO, handle_photo))
+    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    application.add_handler(MessageHandler(filters.VIDEO, handle_video))
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
