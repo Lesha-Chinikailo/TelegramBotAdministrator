@@ -18,6 +18,7 @@ async def delete_photo_message(cursor, update: Update, reason_for_deletion: str)
 
     cursor.execute(sqlInsertDeletedMessages
                    .format(update.message.from_user.id,
+                           f"'{datetime.now()}'",
                            "'PHOTO'",
                            f"'{file_path}'",
                            f"'{reason_for_deletion}'"))
@@ -37,6 +38,6 @@ async def handle_photo_message(update: Update, context: CallbackContext):
     datetime_joined_user = cursor.fetchone()[0]
     time_user_is_in_the_chat = datetime.now() - datetime_joined_user
     if time_user_is_in_the_chat.total_seconds() < seconds_in_hour:
-        await delete_photo_message(cursor, update, error_message_send_photo_less_days)
+        await delete_photo_message(cursor, update, error_message_send_photo_less_an_hour)
 
     conn.close()

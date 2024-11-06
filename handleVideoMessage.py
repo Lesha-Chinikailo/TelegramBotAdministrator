@@ -16,6 +16,7 @@ async def delete_video_message(cursor, update, reason_for_deletion):
 
     cursor.execute(sqlInsertDeletedMessages
                    .format(update.message.from_user.id,
+                           f"'{datetime.now()}'",
                            "'VIDEO'",
                            f"'{file_path}'",
                            f"'{reason_for_deletion}'"))
@@ -36,6 +37,6 @@ async def handle_video_message(update: Update, context: CallbackContext):
     datetime_joined_user = cursor.fetchone()[0]
     time_user_is_in_the_chat = datetime.now() - datetime_joined_user
     if time_user_is_in_the_chat.total_seconds() < seconds_in_hour:
-        await delete_video_message(cursor, update, error_message_send_video_less_days)
+        await delete_video_message(cursor, update, error_message_send_video_less_an_hour)
 
     conn.close()

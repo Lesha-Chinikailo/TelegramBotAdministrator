@@ -17,9 +17,10 @@ sqlSelectIdUsers = os.getenv("sqlSelectIdUsers")
 seconds_in_hour = 60 * 60
 seconds_in_day = seconds_in_hour * 24
 
-error_message_send_message_less_days = "user was in chat less than a day and he sent a reference"
-error_message_send_photo_less_days = "user was in chat less than a day and he sent a photo"
-error_message_send_video_less_days = "user was in chat less than a day and he sent a video"
+error_message_send_message_less_an_hour = "the user has been in the chat for less than an hour"
+error_message_send_message_with_reference = "the message contains a link"
+error_message_send_photo_less_an_hour = "this photo was sent by a user, who has been in the chat for less than an hour"
+error_message_send_video_less_an_hour = "this video was sent by a user, who has been in the chat for less than an hour"
 
 name_dir_images = "images"
 name_dir_videos = "videos"

@@ -35,12 +35,7 @@ async def start(update: Update, context: CallbackContext):
 
 
 def main() -> None:
-    directory = name_dir_images
-    if not os.path.exists(directory):
-        os.mkdir(directory)
-    directory = name_dir_videos
-    if not os.path.exists(directory):
-        os.mkdir(directory)
+    check_directory_existence()
     application = Application.builder().token(os.getenv("TOKEN")).build()
 
     application.add_handler(CommandHandler("start", start))
@@ -52,18 +47,14 @@ def main() -> None:
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
+def check_directory_existence():
+    directory = name_dir_images
+    if not os.path.exists(directory):
+        os.mkdir(directory)
+    directory = name_dir_videos
+    if not os.path.exists(directory):
+        os.mkdir(directory)
+
+
 if __name__ == '__main__':
     main()
-
-# def check_message(update: Update, context: CallbackContext) -> None:
-#     message = update.message
-#
-#     if message.entities:
-#         for entity in message.entities:
-#             if entity.type == 'url':
-#                 user_join_time = message.from_user.date
-#                 current_time = datetime.datetime.now(datetime.timezone.utc)
-#
-#                 if (current_time - user_join_time).total_seconds() < 86400:
-#                     context.bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
-#                     break

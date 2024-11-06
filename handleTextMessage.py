@@ -13,6 +13,7 @@ from constants import *
 async def delete_text_message(cursor, update: Update, reason_for_deletion: str):
     cursor.execute(sqlInsertDeletedMessages
                    .format(update.message.from_user.id,
+                           f"'{datetime.now()}'",
                            f"'TEXT'",
                            f"'{update.message.text}'",
                            f"'{reason_for_deletion}'"))
@@ -37,9 +38,9 @@ async def handle_text_message(update: Update, context: CallbackContext):
     datetime_joined_user = cursor.fetchone()[0]
     time_user_is_in_the_chat = datetime.now() - datetime_joined_user
     if time_user_is_in_the_chat.total_seconds() < seconds_in_hour:
-        await delete_text_message(cursor, update, "user was in chat less than an hour")
+        await delete_text_message(cursor, update, error_message_send_message_less_an_hour)
     elif re.search("(?P<url>https?://[^\s]+)", update.message.text):
         if time_user_is_in_the_chat.total_seconds() < seconds_in_day:
-            await delete_text_message(cursor, update, error_message_send_message_less_days)
+            await delete_text_message(cursor, update, error_message_send_message_with_reference)
 
     conn.close()
